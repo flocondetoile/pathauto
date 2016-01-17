@@ -99,17 +99,17 @@ class PathautoAdminDelete extends FormBase {
    */
   public function submitForm(array &$form, FormStateInterface $form_state) {
     if ($form_state->getValue(['delete', 'all_aliases'])) {
-      db_delete('url_alias')
+      $total = db_delete('url_alias')
         ->execute();
-      drupal_set_message($this->t('All of your path aliases have been deleted.'));
+      drupal_set_message($this->t('@total of your path aliases have been deleted.', array('@total' => $total)));
     }
     foreach (array_keys(array_filter($form_state->getValue(['delete', 'plugins']))) as $id) {
       /** @var \Drupal\pathauto\AliasTypeInterface $alias_type */
       $alias_type = $this->aliasTypeManager->createInstance($id);
-      db_delete('url_alias')
+      $total = db_delete('url_alias')
         ->condition('source', db_like($alias_type->getSourcePrefix()) . '%', 'LIKE')
         ->execute();
-      drupal_set_message(t('All of your %label path aliases have been deleted.', array('%label' => $alias_type->getLabel())));
+      drupal_set_message(t('@total of your %label path aliases have been deleted.', array('@total' => $total, '%label' => $alias_type->getLabel())));
     }
     $form_state->setRedirect('pathauto.admin.delete');
   }

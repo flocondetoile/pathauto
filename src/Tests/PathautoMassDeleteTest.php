@@ -8,6 +8,7 @@
 namespace Drupal\pathauto\Tests;
 
 use Drupal\simpletest\WebTestBase;
+use Drupal\pathauto\PathautoState;
 
 /**
  * Mass delete functionality tests.
@@ -78,29 +79,41 @@ class PathautoMassDeleteTest extends WebTestBase {
    */
   function testDeleteAll() {
     // 1. Test that deleting all the aliases, of any type, works.
+    // We generate 5 nodes, 5 users and 5 terms
     $this->generateAliases();
     $edit = array(
       'delete[all_aliases]' => TRUE,
     );
+
+
+    // Add a new node which path is not managed by pathauto
+    $node1 = $this->drupalCreateNode(array('path' => array('alias' => '/node1', 'pathauto' => PathautoState::SKIP)));
+    // Check node1 has not alias
+    $this->assertEntityAliasExists($node1);
+
     $this->drupalPostForm('admin/config/search/path/delete_bulk', $edit, t('Delete aliases now!'));
-    $this->assertText(t('All of your path aliases have been deleted.'));
+    // We should delete only alias managed by pathauto (5 nodes, 5 users, and 5 terms = 15 aliases)
+    $this->assertText(t('15 of your path aliases have been deleted.'));
     $this->assertUrl(\Drupal::url('pathauto.admin.delete'));
 
-    // Make sure that all of them are actually deleted.
+    // Make sure that all of them are actually deleted, excepted custom alias of node1
     $aliases = db_select('url_alias', 'ua')->fields('ua', array())->execute()->fetchAll();
-    $this->assertEqual($aliases, array(), "All the aliases have been deleted.");
+    $this->assertEqual(count($aliases), 1, "All the aliases have been deleted except 1 manual alias.");
 
     // 2. Test deleting only specific (entity type) aliases.
     $manager = $this->container->get('plugin.manager.alias_type');
     $pathauto_plugins = array('canonical_entities:node' => 'nodes', 'canonical_entities:taxonomy_term' => 'terms', 'canonical_entities:user' => 'accounts');
     foreach ($pathauto_plugins as $pathauto_plugin => $attribute) {
       $this->generateAliases();
+      // Add a new node which path is not managed by pathauto
+      $node = $this->drupalCreateNode(array('path' => array('alias' => '/node1', 'pathauto' => PathautoState::SKIP)));
+
       $edit = array(
         'delete[plugins][' . $pathauto_plugin . ']' => TRUE,
       );
       $this->drupalPostForm('admin/config/search/path/delete_bulk', $edit, t('Delete aliases now!'));
       $alias_type = $manager->createInstance($pathauto_plugin);
-      $this->assertRaw(t('All of your %label path aliases have been deleted.', array('%label' => $alias_type->getLabel())));
+      $this->assertRaw(t('5 of your %label path aliases have been deleted.', array('%label' => $alias_type->getLabel())));
       // Check that the aliases were actually deleted.
       foreach ($this->{$attribute} as $entity) {
         $this->assertNoEntityAlias($entity);
